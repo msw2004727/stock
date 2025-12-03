@@ -21,18 +21,18 @@ async function searchStock() {
         if (/^\d+$/.test(input)) {
             querySymbol = input + ".TW";
         } else {
-            // 簡易對應
             if(input.includes("台積電")) querySymbol = "2330.TW";
             else if(input.includes("聯發科")) querySymbol = "2454.TW";
             else if(input.includes("長榮")) querySymbol = "2603.TW";
             else if(input.includes("鴻海")) querySymbol = "2317.TW";
-            else querySymbol = "2330.TW"; // 預設防呆
+            else querySymbol = "2330.TW"; 
         }
 
-        const response = await fetch(`/api?symbol=${querySymbol}`);
+        // ★★★ 關鍵修正：加上 timestamp 參數，強制瀏覽器抓新資料 ★★★
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api?symbol=${querySymbol}&t=${timestamp}`);
         const stockData = await response.json();
 
-        // ★ 如果後端回傳錯誤，顯示詳細原因
         if (stockData.error) {
             console.error("Backend Error:", stockData.details);
             alert("資料讀取失敗，請確認代號或稍後再試。");
@@ -40,17 +40,14 @@ async function searchStock() {
             return;
         }
 
-        // 1. 處理真實 K 線資料 (只取最新一天的交易日)
+        // 1. 處理真實 K 線資料
         if (stockData.chart && stockData.chart.length > 0) {
             const chartLabels = [];
             const chartPrices = [];
-            
-            // 找出最後一筆資料的日期
             const lastDate = new Date(stockData.chart[stockData.chart.length - 1].date).getDate();
 
             stockData.chart.forEach(point => {
                 const date = new Date(point.date);
-                // ★ 只加入「最後一天」的資料，這樣 1D 圖才不會擠了好幾天
                 if (date.getDate() === lastDate && point.close) {
                     const timeStr = date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
                     chartLabels.push(timeStr);
@@ -59,11 +56,10 @@ async function searchStock() {
             });
             intradayRealData = { labels: chartLabels, prices: chartPrices };
         } else {
-            // 防呆：如果真的沒抓到圖
             intradayRealData = { labels: ["09:00", "13:30"], prices: [stockData.open, stockData.price] };
         }
 
-        // 2. 生成長線歷史 (模擬)
+        // 2. 生成長線歷史
         generateMockHistory(stockData.price);
         
         // 3. 渲染畫面
@@ -79,6 +75,10 @@ async function searchStock() {
         alert("網路連線錯誤");
     }
 }
+
+// ... (後面的函式 renderDashboard, updateTimeRange 等保持不變，直接複製舊的即可，或是如果你需要我再貼一次完整版也可以) ...
+// 為了避免篇幅過長，這裡只列出需要修改的 searchStock，其餘部分請保留原樣。
+// 但為了讓你方便，我下面還是貼出 renderDashboard 等函式，確保你複製不會漏掉。
 
 function renderDashboard(query, stock) {
     const displayName = stock.name ? stock.name.replace('.TW', '') : query;
@@ -269,4 +269,4 @@ function renderChips() {
         html += `<tr><td style="text-align:left;padding-left:20px;">${role}</td><td class="${color}">${val>0?'+':''}${val}</td></tr>`;
     });
     tbody.innerHTML = html;
-}s
+}
