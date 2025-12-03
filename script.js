@@ -1,19 +1,11 @@
-// --- JS 邏輯區 (最新優化版：修正價量顯示問題) ---
-
-// 1. 模擬資料庫
-const mockData = {
-    "2330": { name: "台積電", price: 578.00, change: 5.00, pct: 0.87, volume: 32450 },
-    "2454": { name: "聯發科", price: 920.00, change: -10.00, pct: -1.08, volume: 4500 },
-    "2603": { name: "長榮", price: 150.50, change: 2.50, pct: 1.69, volume: 89000 },
-    "2317": { name: "鴻海", price: 101.50, change: 0.50, pct: 0.50, volume: 56000 }
-};
+// --- JS 邏輯區 (Vercel Serverless 版) ---
 
 // 全域變數
 let kChartInstance = null;
 let fullHistoryData = { labels: [], prices: [] };
 
 // 搜尋功能入口
-function searchStock() {
+async function searchStock() {
     const input = document.getElementById('stockInput').value.trim();
     const dashboard = document.getElementById('dashboard');
     
@@ -22,32 +14,51 @@ function searchStock() {
         return;
     }
 
-    // 模擬載入效果
-    dashboard.style.display = 'none';
-    setTimeout(() => {
-        // 1. 匹配資料
-        let stockKey = "2330"; 
-        if(input.includes("2454") || input.includes("聯發科")) stockKey = "2454";
-        if(input.includes("2603") || input.includes("長榮")) stockKey = "2603";
-        if(input.includes("2317") || input.includes("鴻海")) stockKey = "2317";
+    // 顯示載入中... (可以用個 loading spinner 優化)
+    document.getElementById('stockName').innerText = "資料讀取中...";
+    dashboard.style.display = 'grid'; // 先顯示框架
 
-        const stock = mockData[stockKey];
+    try {
+        // ★★★ 關鍵修改：呼叫我們的 Vercel 後端 API ★★★
+        // 自動判斷是否為數字，若是數字加上 .TW (簡單判斷台股)
+        let querySymbol = input;
+        if (/^\d+$/.test(input)) {
+            querySymbol = input + ".TW";
+        } else {
+            // 如果輸入中文名稱，目前後端還沒做模糊搜尋，暫時提示使用者輸入代號
+            // 這裡為了演示，如果輸入非數字，我們先預設轉成 2330.TW 避免錯誤，實際應做搜尋API
+            if(input.includes("台積電")) querySymbol = "2330.TW";
+            else if(input.includes("聯發科")) querySymbol = "2454.TW";
+            else if(input.includes("長榮")) querySymbol = "2603.TW";
+        }
 
-        // 2. 生成歷史資料
-        generateMockHistory(stock.price);
+        // 發送請求到我們剛剛建立的 /api
+        const response = await fetch(`/api?symbol=${querySymbol}`);
+        const stockData = await response.json();
 
-        // 3. 渲染主畫面
-        renderDashboard(input, stock);
+        if (stockData.error) {
+            alert("查無此股票或 API 錯誤: " + stockData.details);
+            return;
+        }
+
+        // 成功！使用真實資料渲染
+        // 生成模擬歷史資料 (因為免費版 Yahoo API 抓歷史資料較慢，我們先混合使用)
+        // 之後可以在後端也把 historical data 抓回來
+        generateMockHistory(stockData.price);
+
+        renderDashboard(input, stockData);
         
-        // 4. 重置 UI
+        // 重置 UI
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.range-btn')[1].classList.add('active'); // 預設 1M
 
-        dashboard.style.display = 'grid';
-    }, 400);
+    } catch (err) {
+        console.error(err);
+        alert("連線發生錯誤，請稍後再試。");
+    }
 }
 
-// 產生歷史資料
+// 產生歷史資料 (目前仍保留模擬，若要真實歷史需在後端擴充)
 function generateMockHistory(currentPrice) {
     const totalDays = 1260; 
     const labels = [];
@@ -83,36 +94,51 @@ function generateMockHistory(currentPrice) {
 // 渲染儀表板
 function renderDashboard(query, stock) {
     // 基本資訊
-    document.getElementById('stockName').innerText = `${stock.name} (${query.match(/\d+/) ? query : '2330'})`;
+    // 移除 .TW 讓顯示好看點
+    const displayName = stock.name.replace('.TW', '');
+    document.getElementById('stockName').innerText = `${displayName} (${query})`;
+    
     const priceEl = document.getElementById('currentPrice');
     const changeEl = document.getElementById('priceChange');
     
     priceEl.innerText = stock.price.toFixed(2);
+    
+    // 處理漲跌顏色
     if(stock.change > 0) {
         priceEl.className = "price-display text-up";
         changeEl.className = "price-change bg-up";
-        changeEl.innerText = `▲ ${stock.change} (${stock.pct}%)`;
-    } else {
+        changeEl.innerText = `▲ ${stock.change.toFixed(2)} (${stock.pct.toFixed(2)}%)`;
+    } else if (stock.change < 0) {
         priceEl.className = "price-display text-down";
         changeEl.className = "price-change bg-down";
-        changeEl.innerText = `▼ ${Math.abs(stock.change)} (${stock.pct}%)`;
+        changeEl.innerText = `▼ ${Math.abs(stock.change).toFixed(2)} (${Math.abs(stock.pct).toFixed(2)}%)`;
+    } else {
+        priceEl.className = "price-display";
+        changeEl.className = "price-change";
+        changeEl.style.backgroundColor = "gray";
+        changeEl.innerText = `- 0.00 (0.00%)`;
     }
-    document.getElementById('volume').innerText = stock.volume.toLocaleString();
+
+    document.getElementById('volume').innerText = stock.volume ? stock.volume.toLocaleString() : "--";
+    // 如果是股數，轉換成張數 (台灣習慣)
+    if(stock.volume > 10000) {
+        document.getElementById('volume').innerText = Math.floor(stock.volume / 1000).toLocaleString();
+    }
 
     // 繪製 K 線圖
     updateTimeRange('1M');
 
-    // ★ 渲染新的價量統計 (CSS 版)
+    // ★ 渲染價量 (使用真實價格帶入運算模擬)
     renderVolumeStats(stock.price);
 
-    // 其他區塊
+    // 其他區塊 (目前仍維持模擬，若要真實需擴充 API)
     renderOrderBook(stock.price);
     renderChips();
-    renderAIAnalysis();
-    renderNews(stock.name);
+    renderAIAnalysis(); // 星星評分
+    renderNews(displayName);
 }
 
-// 切換時間區間
+// 切換時間區間 (保持不變)
 function updateTimeRange(range, btnElement) {
     if(btnElement) {
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
@@ -144,7 +170,7 @@ function updateTimeRange(range, btnElement) {
     drawKChart(viewLabels, viewPrices);
 }
 
-// K 線圖繪製
+// K 線圖繪製 (保持不變)
 function drawKChart(labels, data) {
     const ctx = document.getElementById('kLineChart').getContext('2d');
     
@@ -183,24 +209,19 @@ function drawKChart(labels, data) {
     });
 }
 
-// ★★★ 新功能：渲染價量力道與統計 (純 CSS，不耗效能) ★★★
+// 價量力道與統計 (保持不變)
 function renderVolumeStats(currentPrice) {
-    // 1. 隨機生成買賣比
-    const buyPct = Math.floor(Math.random() * 40) + 30; // 模擬 30% ~ 70%
+    const buyPct = Math.floor(Math.random() * 40) + 30; 
     const sellPct = 100 - buyPct;
     
-    // 更新文字
     document.getElementById('buyPct').innerText = buyPct + '%';
     document.getElementById('sellPct').innerText = sellPct + '%';
-    
-    // 更新進度條寬度 (紅色部分)
     document.getElementById('sentimentBar').style.width = buyPct + '%';
 
-    // 2. 模擬其他價量數據
-    const turnover = (Math.random() * 50 + 10).toFixed(1); // 成交金額 10~60億
-    const avgPrice = (currentPrice * (1 + (Math.random()-0.5)*0.01)).toFixed(2); // 均價
-    const amplitude = (Math.random() * 2 + 0.5).toFixed(2); // 振幅
-    const tickVol = Math.floor(Math.random() * 50); // 單量
+    const turnover = (Math.random() * 50 + 10).toFixed(1); 
+    const avgPrice = (currentPrice * (1 + (Math.random()-0.5)*0.01)).toFixed(2); 
+    const amplitude = (Math.random() * 2 + 0.5).toFixed(2); 
+    const tickVol = Math.floor(Math.random() * 50); 
 
     document.getElementById('turnover').innerText = turnover;
     document.getElementById('avgPrice').innerText = avgPrice;
@@ -208,19 +229,19 @@ function renderVolumeStats(currentPrice) {
     document.getElementById('tickVol').innerText = tickVol;
 }
 
-// 五檔
+// 五檔 (保持不變)
 function renderOrderBook(basePrice) {
     const tbody = document.getElementById('orderBookBody');
     let html = '';
     for(let i=5; i>=1; i--) {
-        const sellP = (basePrice + i*0.5).toFixed(2);
-        const buyP = (basePrice - i*0.5).toFixed(2);
+        const sellP = (basePrice + i*0.005).toFixed(2); // 稍微縮小五檔價差
+        const buyP = (basePrice - i*0.005).toFixed(2);
         html += `<tr><td class="text-up">${Math.floor(Math.random()*100)}</td><td class="text-up">${buyP}</td><td class="text-down">${sellP}</td><td class="text-down">${Math.floor(Math.random()*100)}</td></tr>`;
     }
     tbody.innerHTML = html;
 }
 
-// 籌碼
+// 籌碼 (保持不變)
 function renderChips() {
     const tbody = document.getElementById('chipsBody');
     const roles = ['主力', '外資', '投信', '自營商'];
@@ -233,7 +254,7 @@ function renderChips() {
     tbody.innerHTML = html;
 }
 
-// AI
+// AI (保持不變)
 function renderAIAnalysis() {
     const getStars = () => '★'.repeat(3 + Math.floor(Math.random()*3)) + '☆'.repeat(2 - Math.floor(Math.random()*2));
     document.getElementById('starDay').innerText = getStars();
@@ -241,8 +262,8 @@ function renderAIAnalysis() {
     document.getElementById('starLong').innerText = getStars();
 }
 
-// 新聞
+// 新聞 (保持不變)
 function renderNews(name) {
     const list = document.getElementById('newsList');
-    list.innerHTML = `<div class="news-item"><span class="news-title">${name} 法說會報喜，營收超乎預期</span><span class="news-time">14:00</span></div><div class="news-item"><span class="news-title">外資連續三日買超 ${name}，目標價上調</span><span class="news-time">13:30</span></div>`;
+    list.innerHTML = `<div class="news-item"><span class="news-title">${name} 營收表現優於預期，法人看好</span><span class="news-time">14:00</span></div><div class="news-item"><span class="news-title">三大法人同步買超 ${name}，股價創新高</span><span class="news-time">13:30</span></div>`;
 }
