@@ -1,8 +1,8 @@
-// --- JS 邏輯區 (Vercel Serverless + 1D K線 + AI 多模型版) ---
+// --- JS 邏輯區 (真實 K 線數據版) ---
 
 let kChartInstance = null;
 let fullHistoryData = { labels: [], prices: [] };
-let currentStockData = null; // 暫存當前股票數據給 1D 圖表用
+let intradayRealData = { labels: [], prices: [] }; // ★ 新增：存真實當日數據
 
 // 搜尋功能入口
 async function searchStock() {
@@ -14,7 +14,7 @@ async function searchStock() {
         return;
     }
 
-    document.getElementById('stockName').innerText = "AI 數據運算中...";
+    document.getElementById('stockName').innerText = "AI 數據連線中...";
     dashboard.style.display = 'grid';
 
     try {
@@ -22,7 +22,7 @@ async function searchStock() {
         if (/^\d+$/.test(input)) {
             querySymbol = input + ".TW";
         } else {
-            // 簡單對應測試用，實際建議後端處理模糊搜尋
+            // 簡易對應，實際建議後端做 mapping
             if(input.includes("台積電")) querySymbol = "2330.TW";
             else if(input.includes("聯發科")) querySymbol = "2454.TW";
             else if(input.includes("長榮")) querySymbol = "2603.TW";
@@ -40,15 +40,32 @@ async function searchStock() {
             return;
         }
 
-        currentStockData = stockData; 
+        // 1. 處理真實 K 線資料 (從後端來的 5分K)
+        if (stockData.chart && stockData.chart.length > 0) {
+            const chartLabels = [];
+            const chartPrices = [];
+            
+            stockData.chart.forEach(point => {
+                // 轉換時間戳記為 HH:mm
+                const date = new Date(point.date);
+                const timeStr = date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+                
+                // 只取有交易的 close 價格
+                if(point.close) {
+                    chartLabels.push(timeStr);
+                    chartPrices.push(point.close);
+                }
+            });
+            intradayRealData = { labels: chartLabels, prices: chartPrices };
+        }
 
-        // 1. 生成歷史資料 (模擬長線)
+        // 2. 生成長線歷史資料 (這部分因為免費 API 限制，暫時維持模擬，若要全真實需後端加抓歷史)
         generateMockHistory(stockData.price);
         
-        // 2. 渲染畫面
+        // 3. 渲染畫面
         renderDashboard(input, stockData);
         
-        // 3. 預設顯示 1D (當日)
+        // 4. 預設顯示 1D (當日)
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.range-btn')[0].classList.add('active'); 
         updateTimeRange('1D'); 
@@ -64,7 +81,7 @@ function renderDashboard(query, stock) {
     // 基本資訊
     const displayName = stock.name.replace('.TW', '');
     document.getElementById('stockName').innerText = `${displayName} (${query})`;
-    document.getElementById('dataDate').innerText = new Date().toLocaleDateString();
+    document.getElementById('dataDate').innerText = new Date().toLocaleString('zh-TW');
 
     const priceEl = document.getElementById('currentPrice');
     const changeEl = document.getElementById('priceChange');
@@ -94,7 +111,7 @@ function renderDashboard(query, stock) {
     renderOrderBook(stock.price);
     renderChips();
 
-    // ★★★ 更新 AI 卡片 ★★★
+    // 更新 AI 卡片
     if (stock.aiAnalysis && stock.aiAnalysis.opinions) {
         const ai = stock.aiAnalysis.opinions;
         updateAICard('gemini', ai.gemini);
@@ -103,7 +120,7 @@ function renderDashboard(query, stock) {
         document.getElementById('aiSummaryText').innerText = stock.aiAnalysis.summary;
     }
 
-    // ★★★ 更新新聞 ★★★
+    // ★★★ 更新新聞 (使用後端過濾後的精準新聞) ★★★
     const newsList = document.getElementById('newsList');
     let newsHtml = '';
     if (stock.news && stock.news.length > 0) {
@@ -133,7 +150,7 @@ function updateAICard(id, data) {
     document.getElementById(`${id}-stars`).innerText = starStr;
 }
 
-// 切換時間區間 (含 1D 邏輯)
+// 切換時間區間 (含 1D 真實邏輯)
 function updateTimeRange(range, btnElement) {
     if(btnElement) {
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
@@ -143,12 +160,17 @@ function updateTimeRange(range, btnElement) {
     let labels, data;
 
     if (range === '1D') {
-        // 生成當日走勢
-        const intraday = generateIntradayData(currentStockData);
-        labels = intraday.labels;
-        data = intraday.data;
+        // ★★★ 使用從後端抓回來的真實數據 ★★★
+        labels = intradayRealData.labels;
+        data = intradayRealData.prices;
+        
+        // 防呆：如果剛開盤沒數據，顯示空圖表或提示
+        if(labels.length === 0) {
+            labels = ["09:00", "13:30"];
+            data = [null, null];
+        }
     } else {
-        // 歷史資料
+        // 歷史資料 (目前仍為模擬，可後續擴充)
         const totalPoints = fullHistoryData.labels.length;
         let sliceCount = 22; 
         switch(range) {
@@ -168,33 +190,6 @@ function updateTimeRange(range, btnElement) {
     drawKChart(labels, data, range === '1D');
 }
 
-// 生成當日走勢 (模擬)
-function generateIntradayData(stock) {
-    const labels = [];
-    const data = [];
-    if(!stock) return { labels: [], data: [] };
-
-    let current = stock.open || stock.prevClose; 
-    const target = stock.price;
-    const totalMinutes = 270; // 4.5小時
-    
-    for (let i = 0; i <= totalMinutes; i++) {
-        const hour = 9 + Math.floor(i / 60);
-        const minute = i % 60;
-        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        
-        if (i % 30 === 0) labels.push(timeStr);
-        else labels.push(''); 
-
-        const progress = i / totalMinutes;
-        const randomFluctuation = (Math.random() - 0.5) * (stock.price * 0.005); 
-        let simPrice = current + (target - current) * progress + randomFluctuation;
-        data.push(simPrice);
-    }
-    data[data.length-1] = stock.price; // 確保收在現價
-    return { labels, data };
-}
-
 function drawKChart(labels, data, isIntraday) {
     const ctx = document.getElementById('kLineChart').getContext('2d');
     if(kChartInstance) kChartInstance.destroy();
@@ -209,10 +204,10 @@ function drawKChart(labels, data, isIntraday) {
                 borderColor: '#ff333a',
                 backgroundColor: 'rgba(255, 51, 58, 0.05)',
                 borderWidth: 2,
-                pointRadius: 0,
+                pointRadius: 0, // 隱藏點
                 pointHoverRadius: 4,
                 fill: true,
-                tension: 0.2
+                tension: 0.1 // 稍微一點平滑，讓鋸齒看起來更自然
             }]
         },
         options: {
@@ -221,7 +216,17 @@ function drawKChart(labels, data, isIntraday) {
             interaction: { mode: 'index', intersect: false },
             plugins: { legend: { display: false } },
             scales: {
-                x: { grid: { display: false }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
+                x: { 
+                    grid: { display: false }, 
+                    ticks: { 
+                        maxTicksLimit: 6, 
+                        maxRotation: 0,
+                        // 如果是 1D，確保標籤不會太擠
+                        callback: function(val, index) {
+                            return this.getLabelForValue(val);
+                        }
+                    } 
+                },
                 y: { grid: { color: '#f0f0f0' }, beginAtZero: false }
             },
             animation: { duration: 0 }
@@ -229,7 +234,7 @@ function drawKChart(labels, data, isIntraday) {
     });
 }
 
-// 產生歷史資料 (模擬)
+// 產生模擬歷史資料 (長天期用)
 function generateMockHistory(currentPrice) {
     const totalDays = 1260; 
     const labels = [];
@@ -264,6 +269,7 @@ function renderVolumeStats(currentPrice) {
     document.getElementById('amplitude').innerText = (Math.random() * 2 + 0.5).toFixed(2) + '%';
     document.getElementById('tickVol').innerText = Math.floor(Math.random() * 50);
 }
+// 五檔 (模擬)
 function renderOrderBook(basePrice) {
     const tbody = document.getElementById('orderBookBody');
     let html = '';
@@ -274,6 +280,7 @@ function renderOrderBook(basePrice) {
     }
     tbody.innerHTML = html;
 }
+// 籌碼 (模擬)
 function renderChips() {
     const tbody = document.getElementById('chipsBody');
     const roles = ['主力', '外資', '投信', '自營商'];
