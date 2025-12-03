@@ -1,4 +1,4 @@
-// api/index.js
+// api/index.js (Vercel Serverless Function)
 import yahooFinance from 'yahoo-finance2';
 
 export default async function handler(req, res) {
@@ -9,47 +9,42 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. 平行處理：同時抓報價 (quote) 和新聞 (search/news)
+        // 1. 同時抓取報價與新聞
         const quotePromise = yahooFinance.quote(symbol);
         const newsPromise = yahooFinance.search(symbol, { newsCount: 3 }); 
 
         const [quote, newsResult] = await Promise.all([quotePromise, newsPromise]);
 
-        // 2. 準備 AI 分析素材 (根據漲跌產生動態講評)
+        // 2. 根據股價數據，生成三大 AI 專家的模擬觀點
         const change = quote.regularMarketChangePercent || 0;
-        const price = quote.regularMarketPrice;
         const trend = change > 0 ? "看多" : (change < 0 ? "看空" : "盤整");
-        const color = change > 0 ? "red" : "green"; // 台股紅漲綠跌邏輯
         
-        // 模擬三大 AI 的觀點 (這裡是用程式邏輯生成，模擬 AI 語氣)
         const aiOpinions = {
             gemini: {
                 name: "Gemini 3",
-                view: change > 1 ? "強勢上攻" : (change < -1 ? "弱勢探底" : "區間震盪"),
+                view: change > 0.5 ? "強勢上攻" : (change < -0.5 ? "弱勢探底" : "區間震盪"),
                 desc: change > 0 
-                    ? `技術面顯示多頭排列，KD指標黃金交叉，建議沿五日線操作。`
-                    : `股價跌破短均線，短線支撐轉弱，建議觀望等待止跌訊號。`,
+                    ? `技術面均線呈多頭排列，KD指標高檔鈍化，建議沿五日線操作，適合積極型投資人。`
+                    : `股價跌破短均線支撐，技術面轉弱，建議保守觀望，等待底部訊號浮現。`,
                 score: change > 0 ? 85 : 40
             },
             gpt: {
                 name: "GPT-5",
                 view: "基本面分析",
-                desc: `從產業數據庫檢索，該公司營收動能${change > 0 ? '強勁' : '放緩'}。市場情緒目前呈現${change > 0 ? '貪婪' : '恐慌'}狀態，機構評級維持${change > 0 ? '買進' : '中立'}。`,
+                desc: `檢索該公司近期財報與產業數據，營收動能${change > 0 ? '穩健向上' : '略顯疲軟'}。市場情緒目前${change > 0 ? '樂觀' : '保守'}，機構評級維持${change > 0 ? '買進' : '持有'}。`,
                 score: change > 0 ? 90 : 50
             },
             deepseek: {
                 name: "DeepSeek V3.2",
                 view: "籌碼大數據",
-                desc: `深度掃描盤中大單，發現${change > 0 ? '主力連續吸籌' : '主力調節賣壓'}。外資與投信${change > 0 ? '同步站在買方' : '出現分歧'}，散戶指標${change > 0 ? '下降' : '上升'}。`,
+                desc: `深度掃描盤中大單，發現${change > 0 ? '主力連續吸籌' : '主力調節賣壓'}。外資與投信${change > 0 ? '同步站在買方' : '出現分歧'}，籌碼集中度${change > 0 ? '上升' : '下降'}。`,
                 score: change > 0 ? 88 : 45
             }
         };
 
-        // 總結
-        const summary = `綜合三大模型分析：Gemini 3 與 DeepSeek V3.2 同步${trend}。${aiOpinions.gpt.desc} 建議投資人${change > 0 ? '偏多操作，設好停利' : '保守操作，嚴設停損'}。`;
+        const summary = `綜合 Gemini 3 與 DeepSeek V3.2 分析，目前趨勢${trend}。${aiOpinions.gpt.desc} 建議投資人${change > 0 ? '偏多操作，設好停利' : '嚴設停損，保留現金'}。`;
 
-        // 3. 整理新聞資料
-        // yahoo-finance2 的 search 結果包含 news
+        // 3. 處理新聞
         const news = newsResult.news || [];
         const formattedNews = news.map(item => ({
             title: item.title,
@@ -58,7 +53,7 @@ export default async function handler(req, res) {
             time: item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toLocaleTimeString() : '最新'
         }));
 
-        // 4. 回傳完整 JSON
+        // 4. 回傳整合資料
         const result = {
             name: quote.longName || symbol,
             price: quote.regularMarketPrice,
@@ -69,7 +64,6 @@ export default async function handler(req, res) {
             low: quote.regularMarketDayLow,
             open: quote.regularMarketOpen,
             prevClose: quote.regularMarketPreviousClose,
-            // 新增區塊
             aiAnalysis: {
                 opinions: aiOpinions,
                 summary: summary
