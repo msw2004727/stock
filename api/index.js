@@ -1,4 +1,4 @@
-// api/index.js (修復日期崩潰與新聞精準度)
+// api/index.js (修復新聞即時性與快取問題)
 import yahooFinance from 'yahoo-finance2';
 
 export default async function handler(req, res) {
@@ -8,16 +8,24 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing symbol parameter' });
     }
 
+    // ★★★ 關鍵修正 1：設定 Response Header 禁止快取 ★★★
+    // 這告訴瀏覽器和 Vercel：這份資料是即時的，絕對不要存快取，每次都要重抓
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     try {
-        // 1. 設定查詢參數
-        // ★★★ 關鍵修正：period1 必須是日期物件，不能寫字串 '1d' ★★★
-        // 我們抓取「過去 3 天」的資料，確保能包含到完整的最近一個交易日 (即使今天是週一也能抓到週五)
+        // 設定查詢時間 (3天前)
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
         
+        // 1. 抓報價
         const quotePromise = yahooFinance.quote(symbol);
-        // 抓 10 則新聞再來過濾，提升精準度
-        const newsPromise = yahooFinance.search(symbol, { newsCount: 10 });
-        // 抓取真實 K 線 (5分鐘一盤)
+        
+        // ★★★ 關鍵修正 2：改用 quoteSummary 抓取「個股專屬新聞」 ★★★
+        // 原本的 search 只是搜尋關鍵字，quoteSummary 才是該股票頁面下的新聞
+        const newsPromise = yahooFinance.quoteSummary(symbol, { modules: ["news"] });
+
+        // 3. 抓 K 線
         const chartPromise = yahooFinance.chart(symbol, { 
             period1: threeDaysAgo, 
             interval: '5m' 
@@ -26,23 +34,24 @@ export default async function handler(req, res) {
         // 平行執行
         const [quote, newsResult, chartResult] = await Promise.all([quotePromise, newsPromise, chartPromise]);
 
-        // 2. 處理 K 線數據
-        // 過濾掉沒有成交量的盤 (避免盤後零星數據干擾圖表)
+        // 處理 K 線
         const chartData = (chartResult.quotes || []).filter(q => q.close && q.volume > 0);
         
-        // 3. 處理新聞 (更嚴格的過濾)
+        // 處理新聞 (注意：quoteSummary 的回傳結構跟 search 不太一樣)
+        // newsResult.news 裡面就是新聞陣列
         const rawNews = newsResult.news || [];
         const formattedNews = rawNews
-            .filter(item => item.title && item.link) // 確保有標題連結
-            .slice(0, 3) // 只取前三則
+            .filter(item => item.title && item.link)
+            .slice(0, 3) // 取前三則
             .map(item => ({
                 title: item.title,
                 link: item.link,
                 publisher: item.publisher,
+                // 轉換時間
                 time: item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '最新'
             }));
 
-        // 4. 生成 AI 分析
+        // AI 分析邏輯 (保持不變)
         const change = quote.regularMarketChangePercent || 0;
         const trend = change > 0 ? "偏多" : (change < 0 ? "偏空" : "盤整");
         
