@@ -1,9 +1,10 @@
-// --- JS 邏輯區 (修復版) ---
+// --- JS 邏輯區 (整合 FinMind 真實籌碼 + 防快取 + 真 K 線版) ---
 
 let kChartInstance = null;
 let fullHistoryData = { labels: [], prices: [] };
 let intradayRealData = { labels: [], prices: [] };
 
+// 搜尋功能入口
 async function searchStock() {
     const input = document.getElementById('stockInput').value.trim();
     const dashboard = document.getElementById('dashboard');
@@ -21,18 +22,21 @@ async function searchStock() {
         if (/^\d+$/.test(input)) {
             querySymbol = input + ".TW";
         } else {
+            // 簡易對應，實際建議後端做 mapping
             if(input.includes("台積電")) querySymbol = "2330.TW";
             else if(input.includes("聯發科")) querySymbol = "2454.TW";
             else if(input.includes("長榮")) querySymbol = "2603.TW";
             else if(input.includes("鴻海")) querySymbol = "2317.TW";
-            else querySymbol = "2330.TW"; 
+            else if(input.includes("廣達")) querySymbol = "2382.TW";
+            else querySymbol = "2330.TW"; // 預設防呆
         }
 
-        // ★★★ 關鍵修正：加上 timestamp 參數，強制瀏覽器抓新資料 ★★★
+        // ★★★ 關鍵：加上時間戳記 (t) 禁止瀏覽器快取，確保拿到最新資料 ★★★
         const timestamp = new Date().getTime();
         const response = await fetch(`/api?symbol=${querySymbol}&t=${timestamp}`);
         const stockData = await response.json();
 
+        // 錯誤處理
         if (stockData.error) {
             console.error("Backend Error:", stockData.details);
             alert("資料讀取失敗，請確認代號或稍後再試。");
@@ -40,14 +44,17 @@ async function searchStock() {
             return;
         }
 
-        // 1. 處理真實 K 線資料
+        // 1. 處理真實 K 線資料 (只取最新一天的交易日)
         if (stockData.chart && stockData.chart.length > 0) {
             const chartLabels = [];
             const chartPrices = [];
+            
+            // 找出最後一筆資料的日期
             const lastDate = new Date(stockData.chart[stockData.chart.length - 1].date).getDate();
 
             stockData.chart.forEach(point => {
                 const date = new Date(point.date);
+                // 只加入「最後一天」的資料
                 if (date.getDate() === lastDate && point.close) {
                     const timeStr = date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
                     chartLabels.push(timeStr);
@@ -56,13 +63,14 @@ async function searchStock() {
             });
             intradayRealData = { labels: chartLabels, prices: chartPrices };
         } else {
+            // 防呆：如果真的沒抓到圖
             intradayRealData = { labels: ["09:00", "13:30"], prices: [stockData.open, stockData.price] };
         }
 
-        // 2. 生成長線歷史
+        // 2. 生成長線歷史 (目前維持模擬，若需真實需後端加抓歷史)
         generateMockHistory(stockData.price);
         
-        // 3. 渲染畫面
+        // 3. 渲染畫面 (傳入完整 stockData 包含 chips)
         renderDashboard(input, stockData);
         
         // 4. 切換到 1D
@@ -72,15 +80,13 @@ async function searchStock() {
 
     } catch (err) {
         console.error(err);
-        alert("網路連線錯誤");
+        alert("網路連線錯誤，請檢查您的網路狀態");
     }
 }
 
-// ... (後面的函式 renderDashboard, updateTimeRange 等保持不變，直接複製舊的即可，或是如果你需要我再貼一次完整版也可以) ...
-// 為了避免篇幅過長，這裡只列出需要修改的 searchStock，其餘部分請保留原樣。
-// 但為了讓你方便，我下面還是貼出 renderDashboard 等函式，確保你複製不會漏掉。
-
+// 渲染儀表板主要函式
 function renderDashboard(query, stock) {
+    // 基本資訊
     const displayName = stock.name ? stock.name.replace('.TW', '') : query;
     document.getElementById('stockName').innerText = `${displayName} (${query})`;
     document.getElementById('dataDate').innerText = new Date().toLocaleString('zh-TW');
@@ -90,6 +96,7 @@ function renderDashboard(query, stock) {
     
     priceEl.innerText = stock.price ? stock.price.toFixed(2) : "--";
     
+    // 漲跌顏色判斷
     if(stock.change > 0) {
         priceEl.className = "price-display text-up";
         changeEl.className = "price-change bg-up";
@@ -105,13 +112,18 @@ function renderDashboard(query, stock) {
         changeEl.innerText = `- 0.00 (0.00%)`;
     }
 
+    // 成交量格式化
     const volText = stock.volume > 10000 ? Math.floor(stock.volume/1000).toLocaleString() : (stock.volume ? stock.volume.toLocaleString() : "--");
     document.getElementById('volume').innerText = volText;
 
+    // 呼叫各子區塊渲染
     renderVolumeStats(stock.price);
     renderOrderBook(stock.price);
-    renderChips();
+    
+    // ★★★ 關鍵修改：傳入後端抓到的真實 chips 資料 ★★★
+    renderChips(stock.chips); 
 
+    // AI 卡片更新
     if (stock.aiAnalysis && stock.aiAnalysis.opinions) {
         const ai = stock.aiAnalysis.opinions;
         updateAICard('gemini', ai.gemini);
@@ -120,6 +132,7 @@ function renderDashboard(query, stock) {
         document.getElementById('aiSummaryText').innerText = stock.aiAnalysis.summary;
     }
 
+    // 新聞列表更新
     const newsList = document.getElementById('newsList');
     let newsHtml = '';
     if (stock.news && stock.news.length > 0) {
@@ -139,6 +152,45 @@ function renderDashboard(query, stock) {
     newsList.innerHTML = newsHtml;
 }
 
+// 渲染真實法人籌碼 (取代舊的隨機函式)
+function renderChips(realData) {
+    const tbody = document.getElementById('chipsBody');
+    let html = '';
+    
+    // 如果後端有抓到資料
+    if (realData && realData.length > 0) {
+        realData.forEach(item => {
+            const val = item.val;
+            let colorClass = 'text-dark'; // 預設黑色
+            let sign = '';
+            
+            if (val > 0) {
+                colorClass = 'text-up'; // 紅
+                sign = '+';
+            } else if (val < 0) {
+                colorClass = 'text-down'; // 綠
+            } else if (val === null) {
+                colorClass = 'text-light'; // 灰 (無資料)
+            }
+
+            const displayVal = val === null ? "--" : `${sign}${val.toLocaleString()}`;
+
+            html += `
+                <tr>
+                    <td style="text-align:left; padding-left:20px;">${item.name}</td>
+                    <td class="${colorClass}">${displayVal}</td>
+                </tr>
+            `;
+        });
+    } else {
+        // 如果完全沒資料 (例如網路錯誤或 FinMind 無回應)
+        html = `<tr><td colspan="2" style="color:#999;">暫無法人資料</td></tr>`;
+    }
+    
+    tbody.innerHTML = html;
+}
+
+// 更新單張 AI 卡片
 function updateAICard(id, data) {
     if(!data) return;
     document.getElementById(`${id}-view`).innerText = data.view;
@@ -148,6 +200,7 @@ function updateAICard(id, data) {
     document.getElementById(`${id}-stars`).innerText = starStr;
 }
 
+// 切換時間區間 (含 1D 真實邏輯)
 function updateTimeRange(range, btnElement) {
     if(btnElement) {
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
@@ -179,6 +232,7 @@ function updateTimeRange(range, btnElement) {
     drawKChart(labels, data);
 }
 
+// 繪製 K 線圖 (Chart.js)
 function drawKChart(labels, data) {
     const ctx = document.getElementById('kLineChart').getContext('2d');
     if(kChartInstance) kChartInstance.destroy();
@@ -216,6 +270,7 @@ function drawKChart(labels, data) {
     });
 }
 
+// 產生模擬歷史資料 (長天期用 - 暫時模擬)
 function generateMockHistory(currentPrice) {
     const totalDays = 1260; 
     const labels = [];
@@ -239,6 +294,7 @@ function generateMockHistory(currentPrice) {
     fullHistoryData = { labels: labels.slice(-minLen), prices: prices.slice(-minLen) };
 }
 
+// 價量力道與統計 (模擬計算)
 function renderVolumeStats(currentPrice) {
     const buyPct = Math.floor(Math.random() * 40) + 30; 
     document.getElementById('buyPct').innerText = buyPct + '%';
@@ -249,6 +305,8 @@ function renderVolumeStats(currentPrice) {
     document.getElementById('amplitude').innerText = (Math.random() * 2 + 0.5).toFixed(2) + '%';
     document.getElementById('tickVol').innerText = Math.floor(Math.random() * 50);
 }
+
+// 五檔 (模擬)
 function renderOrderBook(basePrice) {
     const tbody = document.getElementById('orderBookBody');
     let html = '';
@@ -257,16 +315,5 @@ function renderOrderBook(basePrice) {
         const buyP = (basePrice - i*0.5).toFixed(2);
         html += `<tr><td class="text-up">${Math.floor(Math.random()*100)}</td><td class="text-up">${buyP}</td><td class="text-down">${sellP}</td><td class="text-down">${Math.floor(Math.random()*100)}</td></tr>`;
     }
-    tbody.innerHTML = html;
-}
-function renderChips() {
-    const tbody = document.getElementById('chipsBody');
-    const roles = ['主力', '外資', '投信', '自營商'];
-    let html = '';
-    roles.forEach(role => {
-        const val = Math.floor((Math.random()-0.4)*2000);
-        const color = val > 0 ? 'text-up' : 'text-down';
-        html += `<tr><td style="text-align:left;padding-left:20px;">${role}</td><td class="${color}">${val>0?'+':''}${val}</td></tr>`;
-    });
     tbody.innerHTML = html;
 }
