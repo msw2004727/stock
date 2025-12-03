@@ -3,86 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 台股分析儀 - 程式夥伴</title>
-    <link rel="stylesheet" href="styles.css"> </head>
+    <title>AI 智能台股分析系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
 <body>
+
     <div class="container">
-        <header class="header">
-            <h1>🤖 AI 台股分析儀</h1>
+        <div class="header-section">
+            <h1><i class="fa-solid fa-chart-line"></i> AI 股市戰情室</h1>
             <div class="search-box">
-                <input type="text" id="stock-input" placeholder="輸入台股號碼或股票名 (如: 2330 台積電)">
-                <button onclick="fetchStockData()">分析</button>
+                <input type="text" id="stockInput" placeholder="輸入台股代號或名稱 (例如: 2330, 台積電)">
+                <button class="search-btn" onclick="searchStock()">分析</button>
             </div>
-        </header>
+        </div>
 
-        <main class="main-content">
-            <section class="left-panel">
-                <div class="card ai-strategy-card" id="ai-strategy-module">
-                    <h2>✨ AI 策略分析 (1~5 星)</h2>
-                    <div id="ai-confidence">
-                        </div>
-                    <div id="ai-strategy-text">
-                        </div>
-                    <div class="expansion-point">
-                        <p class="future-expansion-note">【未來 AI 模型擴充位置】</p>
-                    </div>
+        <div id="dashboard" class="dashboard">
+            
+            <div class="info-bar">
+                <div>
+                    <span class="stock-title" id="stockName">台積電 (2330)</span>
+                    <span style="color: #666; font-size: 0.9rem; margin-left: 10px;" id="dataDate">資料日期: 2023-12-03</span>
                 </div>
+                <div style="display: flex; align-items: center;">
+                    <div class="price-display text-up" id="currentPrice">578.00</div>
+                    <div class="price-change bg-up" id="priceChange">▲ 5.00 (0.87%)</div>
+                </div>
+                <div>
+                    <div>成交量: <span id="volume">32,450</span> 張</div>
+                </div>
+            </div>
 
-                <div class="card legal-entity-card">
-                    <h2>📊 籌碼分析 (最新資料日)</h2>
-                    <p id="legal-entity-date">資料日期: --/--/--</p>
-                    <table class="data-table" id="legal-entity-table">
+            <div class="left-panel">
+                <div class="card">
+                    <div class="card-header">即時 K 線走勢 (日K)</div>
+                    <canvas id="kLineChart" height="300"></canvas>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">當日價量分佈</div>
+                    <canvas id="volumeChart" height="100"></canvas>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="card order-book">
+                    <div class="card-header">最佳五檔</div>
+                    <table>
                         <thead>
-                            <tr>
-                                <th>機構</th>
-                                <th class="buy-col">總買超 (張)</th>
-                                <th class="sell-col">總賣超 (張)</th>
-                                <th>淨買賣超 (張)</th>
-                            </tr>
+                            <tr><th>委買量</th><th>委買價</th><th>委賣價</th><th>委賣量</th></tr>
                         </thead>
-                        <tbody>
+                        <tbody id="orderBookBody">
                             </tbody>
                     </table>
                 </div>
-            </section>
 
-            <section class="center-panel">
-                <div class="card kline-chart-card">
-                    <h2>📈 即時最新 K 線圖</h2>
-                    <div id="kline-chart" class="chart-placeholder">
-                        <p>K 線圖模擬顯示區域</p>
+                <div class="card">
+                    <div class="card-header">三大法人買賣超 (張)</div>
+                    <table class="chips-table">
+                        <tbody id="chipsBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card ai-section">
+                <div class="card-header">
+                    <span><i class="fa-solid fa-robot"></i> AI 綜合決策分析</span>
+                    <span class="ai-badge">Deep Learning Model v2.1</span>
+                </div>
+                <div class="ai-grid">
+                    <div class="strategy-box">
+                        <h4>當沖信心</h4>
+                        <div class="stars" id="starDay">★★★☆☆</div>
+                        <p id="descDay" style="font-size: 0.9rem; color: #555;">波動收斂，區間操作為主</p>
                     </div>
-                    <div class="expansion-point">
-                        <p class="future-expansion-note">【未來圖表功能擴充位置】</p>
+                    <div class="strategy-box">
+                        <h4>短線趨勢</h4>
+                        <div class="stars" id="starShort">★★★★☆</div>
+                        <p id="descShort" style="font-size: 0.9rem; color: #555;">均線多頭排列，回檔找買點</p>
+                    </div>
+                    <div class="strategy-box">
+                        <h4>長線價值</h4>
+                        <div class="stars" id="starLong">★★★★★</div>
+                        <p id="descLong" style="font-size: 0.9rem; color: #555;">基本面強勁，建議長期持有</p>
                     </div>
                 </div>
-
-                <div class="bottom-data-panel">
-                    <div class="card order-book-card">
-                        <h2>⏱️ 五檔買賣數值</h2>
-                        <div id="order-book">
-                             </div>
-                    </div>
-                    <div class="card volume-bar-card">
-                        <h2>💰 價量 (計量條)</h2>
-                        <div id="volume-bar">
-                            </div>
-                    </div>
+                <div style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px;">
+                    <strong><i class="fa-solid fa-lightbulb"></i> AI 策略建議：</strong>
+                    <span id="aiSummary">目前籌碼面顯示外資持續買進，雖然短線乖離過大可能面臨修正，但長線趨勢依舊看好。建議今日若回測五日線不破可嘗試進場。</span>
                 </div>
-            </section>
+            </div>
 
-            <section class="right-panel">
-                <div class="card news-card">
-                    <h2>📰 最新三則相關新聞</h2>
-                    <div id="news-list">
-                        </div>
-                    <div class="expansion-point">
-                        <p class="future-expansion-note">【未來新聞情緒分析擴充位置】</p>
+            <div class="card" style="grid-column: 1 / -1;">
+                <div class="card-header">最新相關新聞</div>
+                <div id="newsList">
                     </div>
-                </div>
-            </section>
-        </main>
+            </div>
+
+        </div>
     </div>
 
-    <script src="script.js"></script> </body>
+    <script src="script.js"></script>
+</body>
 </html>
