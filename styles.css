@@ -1,299 +1,190 @@
-/* styles.css */
-
-/* --- 全域設定與字體 --- */
+/* --- CSS 設定 --- */
 :root {
-    --primary-color: #007bff; /* 主要藍色 */
-    --secondary-color: #6c757d; /* 次要灰色 */
-    --background-color: #f8f9fa; /* 明亮背景 */
-    --card-background: #ffffff; /* 卡片背景 */
-    --text-color: #212529; /* 深色文字 */
-    --border-color: #e9ecef; /* 邊框顏色 */
-
-    /* 股票顏色 */
-    --red-up: #e63757; /* 漲 (紅) */
-    --green-down: #17a2b8; /* 跌 (藍/綠) */
-    --neutral: #6c757d; /* 平盤 */
+    --primary-bg: #f4f7f6;
+    --card-bg: #ffffff;
+    --text-dark: #2c3e50;
+    --text-light: #7f8c8d;
+    --up-color: #ff333a; /* 台股紅漲 */
+    --down-color: #00aa00; /* 台股綠跌 */
+    --accent-color: #3498db;
+    --ai-color: #8e44ad;
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--background-color);
-    color: var(--text-color);
+    font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    background-color: var(--primary-bg);
     margin: 0;
-    padding: 0;
-    line-height: 1.6;
-}
-
-h1, h2 {
-    color: var(--primary-color);
-    margin-top: 0;
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 5px;
-}
-
-/* --- 佈局容器 (Container) --- */
-.container {
     padding: 20px;
-    max-width: 1400px; /* 設定最大寬度 */
-    margin: 0 auto;
+    color: var(--text-dark);
 }
 
-.main-content {
-    display: flex;
-    gap: 20px; /* 區塊間距 */
-}
-
-.left-panel, .center-panel, .right-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.left-panel { flex: 1.2; min-width: 300px; } /* 籌碼區塊佔比 */
-.center-panel { flex: 3; min-width: 600px; } /* K線區塊佔比最大 */
-.right-panel { flex: 1; min-width: 250px; } /* 新聞區塊佔比 */
-
-
-/* --- 通用卡片樣式 (Card) --- */
-.card {
-    background-color: var(--card-background);
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* 輕微陰影 */
-    transition: transform 0.3s;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-}
-
-/* --- Header 與輸入框 --- */
-.header {
+/* 頂部搜尋區 */
+.header-section {
     text-align: center;
-    padding: 20px 0;
-    margin-bottom: 20px;
-    background-color: var(--card-background);
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
 }
 
 .search-box {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
+    position: relative;
+    max-width: 500px;
+    margin: 0 auto;
 }
 
-#stock-input {
-    padding: 10px 15px;
-    border: 2px solid var(--border-color);
-    border-radius: 8px;
+input[type="text"] {
+    width: 100%;
+    padding: 15px 20px;
+    border-radius: 30px;
+    border: 2px solid #ddd;
     font-size: 16px;
-    width: 300px;
-    transition: border-color 0.3s;
-}
-
-#stock-input:focus {
     outline: none;
-    border-color: var(--primary-color);
+    transition: 0.3s;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-sizing: border-box; /* 確保 padding 不會撐破寬度 */
 }
 
-button {
-    padding: 10px 20px;
-    background-color: var(--primary-color);
+input[type="text"]:focus {
+    border-color: var(--accent-color);
+}
+
+.search-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--accent-color);
     color: white;
     border: none;
-    border-radius: 8px;
+    padding: 10px 20px;
+    border-radius: 20px;
     cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s;
-}
-
-button:hover {
-    background-color: #0056b3;
-}
-
-/* --- 表格樣式 (三大法人/籌碼) --- */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 0.95em;
-}
-
-.data-table th, .data-table td {
-    padding: 10px 8px;
-    text-align: center;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.data-table thead th {
-    background-color: var(--background-color);
     font-weight: bold;
-    color: var(--primary-color);
 }
 
-.data-table tbody tr:hover {
-    background-color: #f1f1f1;
-}
-
-/* 股票顏色標記 */
-.positive { color: var(--red-up); font-weight: bold; } /* 淨買超 (正數) */
-.negative { color: var(--green-down); font-weight: bold; } /* 淨賣超 (負數) */
-.buy-col { color: var(--red-up); }
-.sell-col { color: var(--green-down); }
-
-
-/* --- K線圖佔位符 --- */
-.kline-chart-card {
-    flex-grow: 1; /* 讓 K 線圖卡片佔滿剩餘空間 */
-}
-
-.chart-placeholder {
-    height: 350px;
-    background-color: #f1f1f1;
-    border: 1px dashed var(--secondary-color);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: var(--secondary-color);
-    font-style: italic;
-    border-radius: 8px;
-}
-
-/* --- 底部數據區塊 (五檔/價量) --- */
-.bottom-data-panel {
-    display: flex;
+/* 儀表板網格系統 */
+.dashboard {
+    display: none; /* 搜尋後顯示 */
+    grid-template-columns: 2fr 1fr;
     gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
-.order-book-card { flex: 1; }
-.volume-bar-card { flex: 1; }
+.card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
 
-/* 五檔樣式 */
-.order-row {
+.card-header {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
     display: flex;
     justify-content: space-between;
-    padding: 5px 0;
-    font-size: 1em;
-}
-
-.bid-price, .ask-price { font-weight: bold; }
-.bid-price { color: var(--red-up); } /* 買價 */
-.ask-price { color: var(--green-down); } /* 賣價 */
-
-/* 價量計量條樣式 */
-#volume-bar {
-    display: flex;
     align-items: center;
-    height: 30px;
+}
+
+/* 頂部資訊列 */
+.info-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 15px 25px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.stock-title {
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.price-display {
+    font-size: 1.8rem;
+    font-weight: bold;
+}
+
+.price-change {
+    font-size: 1rem;
+    padding: 5px 10px;
     border-radius: 5px;
-    overflow: hidden;
-    margin-top: 10px;
-}
-
-.buy-volume-bar, .sell-volume-bar {
-    height: 100%;
-    transition: width 0.5s ease-in-out;
-    text-align: center;
     color: white;
-    font-weight: bold;
-    font-size: 0.8em;
-    line-height: 30px;
-    white-space: nowrap;
+    margin-left: 10px;
 }
 
-.buy-volume-bar { background-color: var(--red-up); }
-.sell-volume-bar { background-color: var(--green-down); }
+.bg-up { background-color: var(--up-color); }
+.bg-down { background-color: var(--down-color); }
+.text-up { color: var(--up-color); }
+.text-down { color: var(--down-color); }
 
+/* 五檔報價 */
+.order-book table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+}
+.order-book th { font-size: 0.9rem; color: var(--text-light); }
+.order-book td { padding: 5px; font-weight: bold; }
 
-/* --- AI 策略與信心指數 --- */
-.ai-strategy-card {
-    background-color: #e0f7fa; /* 淺藍色背景，突出顯示 */
-    border: 1px solid var(--primary-color);
+/* 籌碼面表格 */
+.chips-table {
+    width: 100%;
+    text-align: center;
+}
+.chips-table td { padding: 8px 0; border-bottom: 1px solid #eee; }
+
+/* AI 分析區塊 */
+.ai-section {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+    border: 2px solid var(--ai-color);
 }
 
-.confidence-stars {
-    font-size: 2em;
-    color: #ffc107; /* 黃色星星 */
-    margin-bottom: 10px;
+.ai-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
 }
 
-.strategy-title {
-    font-weight: bold;
-    margin-top: 15px;
-    color: var(--primary-color);
-}
-
-#ai-strategy-text p {
-    margin: 5px 0;
-    padding: 8px;
-    border-left: 3px solid var(--primary-color);
-    background-color: #f0f8ff;
-    border-radius: 4px;
-}
-
-/* --- 新聞列表 --- */
-.news-card {
-    height: 100%; /* 讓新聞區塊佔滿垂直空間 */
-}
-
-.news-item {
-    border-bottom: 1px dashed var(--border-color);
-    padding-bottom: 10px;
-    margin-bottom: 10px;
-}
-
-.news-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.news-item a {
-    color: var(--text-color);
-    text-decoration: none;
-    font-weight: 500;
-    transition: color 0.3s;
-}
-
-.news-item a:hover {
-    color: var(--primary-color);
-    text-decoration: underline;
-}
-
-.news-item small {
-    display: block;
-    color: var(--secondary-color);
-    margin-top: 5px;
-    font-size: 0.85em;
-}
-
-/* --- 未來功能擴充點 (Expansion Point) --- */
-.expansion-point {
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--border-color);
+.strategy-box {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
     text-align: center;
 }
 
-.future-expansion-note {
-    font-size: 0.8em;
-    color: var(--secondary-color);
-    margin: 5px 0 0 0;
+.stars { color: gold; font-size: 1.2rem; }
+
+.ai-badge {
+    background: var(--ai-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    vertical-align: middle;
+    margin-left: 10px;
 }
 
-/* --- RWD 基本調整 --- */
-@media (max-width: 1200px) {
-    .main-content {
-        flex-direction: column; /* 小螢幕時堆疊 */
-    }
+/* 新聞區塊 */
+.news-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+.news-item:last-child { border-bottom: none; }
+.news-title { font-weight: bold; display: block; margin-bottom: 5px; cursor: pointer; }
+.news-title:hover { color: var(--accent-color); }
+.news-time { font-size: 0.85rem; color: var(--text-light); }
 
-    .bottom-data-panel {
-        flex-direction: column;
-    }
-
-    .left-panel, .center-panel, .right-panel {
-        min-width: unset;
-        flex: 1;
-    }
+/* 響應式設定 */
+@media (max-width: 900px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .info-bar { flex-direction: column; text-align: center; gap: 10px; }
+    .ai-grid { grid-template-columns: 1fr; }
 }
