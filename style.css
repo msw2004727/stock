@@ -39,7 +39,7 @@ input[type="text"] {
     outline: none;
     transition: 0.3s;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    box-sizing: border-box; /* 確保 padding 不會撐破寬度 */
+    box-sizing: border-box;
 }
 
 input[type="text"]:focus {
@@ -86,6 +86,46 @@ input[type="text"]:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap; /* 讓按鈕在小螢幕自動換行 */
+    gap: 10px;
+}
+
+/* --- K線圖時間切換按鈕 --- */
+.chart-controls {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.range-btn {
+    background: transparent;
+    border: 1px solid #e0e0e0;
+    color: var(--text-light);
+    padding: 4px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.range-btn:hover {
+    background-color: #f0f0f0;
+    color: var(--text-dark);
+}
+
+/* 被選中的狀態 */
+.range-btn.active {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
 }
 
 /* 頂部資訊列 */
