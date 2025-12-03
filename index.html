@@ -55,8 +55,34 @@
                 </div>
                 
                 <div class="card">
-                    <div class="card-header">當日價量分佈</div>
-                    <canvas id="volumeChart" height="100"></canvas>
+                    <div class="card-header">買賣力道與價量統計</div>
+                    <div class="sentiment-container">
+                        <div class="sentiment-header">
+                            <span class="text-up"><i class="fa-solid fa-arrow-trend-up"></i> 外盤(買) <span id="buyPct">0%</span></span>
+                            <span class="text-down">內盤(賣) <span id="sellPct">0%</span> <i class="fa-solid fa-arrow-trend-down"></i></span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="sentimentBar" class="progress-bar-fill"></div>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">成交金額 (億)</span>
+                                <span class="stat-value" id="turnover">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">當日均價</span>
+                                <span class="stat-value" id="avgPrice">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">振幅</span>
+                                <span class="stat-value" id="amplitude">--%</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">單量</span>
+                                <span class="stat-value" id="tickVol">--</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
