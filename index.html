@@ -24,14 +24,14 @@
             <div class="info-bar">
                 <div>
                     <span class="stock-title" id="stockName">台積電 (2330)</span>
-                    <span style="color: #666; font-size: 0.9rem; margin-left: 10px;" id="dataDate">資料日期: 2023-12-03</span>
+                    <span style="color: #666; font-size: 0.9rem; margin-left: 10px;" id="dataDate">資料讀取中...</span>
                 </div>
                 <div style="display: flex; align-items: center;">
-                    <div class="price-display text-up" id="currentPrice">578.00</div>
-                    <div class="price-change bg-up" id="priceChange">▲ 5.00 (0.87%)</div>
+                    <div class="price-display text-up" id="currentPrice">--</div>
+                    <div class="price-change bg-up" id="priceChange">--</div>
                 </div>
                 <div>
-                    <div>成交量: <span id="volume">32,450</span> 張</div>
+                    <div>成交量: <span id="volume">--</span> 張</div>
                 </div>
             </div>
 
@@ -40,13 +40,13 @@
                     <div class="card-header">
                         <span>即時 K 線走勢</span>
                         <div class="chart-controls">
+                            <button class="range-btn active" onclick="updateTimeRange('1D', this)">1D</button>
                             <button class="range-btn" onclick="updateTimeRange('5D', this)">5天</button>
-                            <button class="range-btn active" onclick="updateTimeRange('1M', this)">1個月</button>
+                            <button class="range-btn" onclick="updateTimeRange('1M', this)">1個月</button>
                             <button class="range-btn" onclick="updateTimeRange('6M', this)">6個月</button>
                             <button class="range-btn" onclick="updateTimeRange('YTD', this)">YTD</button>
                             <button class="range-btn" onclick="updateTimeRange('1Y', this)">1年</button>
                             <button class="range-btn" onclick="updateTimeRange('5Y', this)">5年</button>
-                            <button class="range-btn" onclick="updateTimeRange('MAX', this)">最長</button>
                         </div>
                     </div>
                     <div class="chart-container">
@@ -93,52 +93,60 @@
                         <thead>
                             <tr><th>委買量</th><th>委買價</th><th>委賣價</th><th>委賣量</th></tr>
                         </thead>
-                        <tbody id="orderBookBody">
-                            </tbody>
+                        <tbody id="orderBookBody"></tbody>
                     </table>
                 </div>
 
                 <div class="card">
                     <div class="card-header">三大法人買賣超 (張)</div>
                     <table class="chips-table">
-                        <tbody id="chipsBody">
-                            </tbody>
+                        <tbody id="chipsBody"></tbody>
                     </table>
                 </div>
             </div>
 
             <div class="card ai-section">
                 <div class="card-header">
-                    <span><i class="fa-solid fa-robot"></i> AI 綜合決策分析</span>
-                    <span class="ai-badge">Deep Learning Model v2.1</span>
+                    <span><i class="fa-solid fa-brain"></i> AI 綜合決策分析中心</span>
+                    <span class="ai-badge">Multi-Model Consensus</span>
                 </div>
-                <div class="ai-grid">
-                    <div class="strategy-box">
-                        <h4>當沖信心</h4>
-                        <div class="stars" id="starDay">★★★☆☆</div>
-                        <p id="descDay" style="font-size: 0.9rem; color: #555;">波動收斂，區間操作為主</p>
+                
+                <div class="ai-models-grid">
+                    <div class="model-card gemini-card">
+                        <div class="model-header"><i class="fa-brands fa-google"></i> Gemini 3</div>
+                        <div class="model-body">
+                            <div class="model-view" id="gemini-view">運算中...</div>
+                            <div class="stars" id="gemini-stars">☆☆☆☆☆</div>
+                            <p class="model-desc" id="gemini-desc">正在連線 Google Cloud...</p>
+                        </div>
                     </div>
-                    <div class="strategy-box">
-                        <h4>短線趨勢</h4>
-                        <div class="stars" id="starShort">★★★★☆</div>
-                        <p id="descShort" style="font-size: 0.9rem; color: #555;">均線多頭排列，回檔找買點</p>
+                    <div class="model-card gpt-card">
+                        <div class="model-header"><i class="fa-solid fa-robot"></i> GPT-5</div>
+                        <div class="model-body">
+                            <div class="model-view" id="gpt-view">運算中...</div>
+                            <div class="stars" id="gpt-stars">☆☆☆☆☆</div>
+                            <p class="model-desc" id="gpt-desc">正在分析全球數據庫...</p>
+                        </div>
                     </div>
-                    <div class="strategy-box">
-                        <h4>長線價值</h4>
-                        <div class="stars" id="starLong">★★★★★</div>
-                        <p id="descLong" style="font-size: 0.9rem; color: #555;">基本面強勁，建議長期持有</p>
+                    <div class="model-card deepseek-card">
+                        <div class="model-header"><i class="fa-solid fa-network-wired"></i> DeepSeek V3.2</div>
+                        <div class="model-body">
+                            <div class="model-view" id="deepseek-view">運算中...</div>
+                            <div class="stars" id="deepseek-stars">☆☆☆☆☆</div>
+                            <p class="model-desc" id="deepseek-desc">正在進行籌碼掃描...</p>
+                        </div>
                     </div>
                 </div>
-                <div style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px;">
-                    <strong><i class="fa-solid fa-lightbulb"></i> AI 策略建議：</strong>
-                    <span id="aiSummary">目前籌碼面顯示外資持續買進，雖然短線乖離過大可能面臨修正，但長線趨勢依舊看好。建議今日若回測五日線不破可嘗試進場。</span>
+
+                <div class="ai-final-summary">
+                    <div class="summary-title"><i class="fa-solid fa-gavel"></i> Gemini 3 最終總結判斷</div>
+                    <div class="summary-text" id="aiSummaryText">等待三大模型運算完畢，將在此生成最終投資建議...</div>
                 </div>
             </div>
 
             <div class="card" style="grid-column: 1 / -1;">
                 <div class="card-header">最新相關新聞</div>
-                <div id="newsList">
-                    </div>
+                <div id="newsList"></div>
             </div>
 
         </div>
