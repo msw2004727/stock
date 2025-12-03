@@ -1,4 +1,4 @@
-/* --- CSS 設定 (自適應版) --- */
+/* --- CSS 設定 (RWD 自適應修復版) --- */
 :root {
     --primary-bg: #f4f7f6;
     --card-bg: #ffffff;
@@ -10,31 +10,38 @@
     --ai-color: #8e44ad;
 }
 
+/* 關鍵：全域 Box-sizing，確保 padding 不會撐破寬度 */
 * {
-    box-sizing: border-box; /* 關鍵：讓寬度計算包含 padding */
+    box-sizing: border-box;
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft JhengHei', sans-serif;
     background-color: var(--primary-bg);
     margin: 0;
-    padding: 15px; /* 手機版邊距稍微縮小 */
+    padding: 10px; /* 手機版預設間距縮小 */
     color: var(--text-dark);
-    font-size: 16px; /* 防止 iOS 輸入框放大 */
+    font-size: 16px;
+    line-height: 1.5;
 }
 
-/* 容器最大寬度限制 */
+/* 容器最大寬度限制，避免在大螢幕太寬 */
 .container {
     max-width: 1400px;
     margin: 0 auto;
     width: 100%;
 }
 
-/* 頂部搜尋區 */
+/* --- 頂部搜尋區 --- */
 .header-section {
     text-align: center;
-    margin-bottom: 25px;
-    padding: 0 10px;
+    margin-bottom: 20px;
+    padding: 0 5px;
+}
+
+.header-section h1 {
+    font-size: 1.5rem; /* 手機版標題不要太大 */
+    margin-bottom: 15px;
 }
 
 .search-box {
@@ -46,14 +53,14 @@ body {
 
 input[type="text"] {
     width: 100%;
-    padding: 15px 90px 15px 20px; /* 右邊預留空間給按鈕 */
+    padding: 12px 85px 12px 20px; /* 右邊預留空間給按鈕 */
     border-radius: 30px;
     border: 2px solid #ddd;
     font-size: 1rem;
     outline: none;
     transition: 0.3s;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    -webkit-appearance: none; /* 移除 iOS 預設樣式 */
+    background: #fff;
+    -webkit-appearance: none; /* iOS 修正 */
 }
 
 input[type="text"]:focus {
@@ -68,39 +75,35 @@ input[type="text"]:focus {
     background: var(--accent-color);
     color: white;
     border: none;
-    padding: 0 20px;
+    padding: 0 15px;
     border-radius: 25px;
     cursor: pointer;
     font-weight: bold;
-    font-size: 0.95rem;
-    transition: background 0.2s;
+    font-size: 0.9rem;
 }
 
-.search-btn:hover {
-    background-color: #2980b9;
-}
-
-/* 儀表板網格系統 */
+/* --- 儀表板佈局 (Grid) --- */
 .dashboard {
     display: none; /* 搜尋後顯示 */
-    /* 電腦版：左圖表(2) 右數據(1) */
+    /* 預設(電腦版)：兩欄式 (左2 右1) */
     grid-template-columns: 2fr 1fr; 
     gap: 20px;
     width: 100%;
 }
 
-/* 卡片通用樣式 */
+/* --- 卡片通用樣式 --- */
 .card {
     background: var(--card-bg);
     border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    padding: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     margin-bottom: 20px;
+    width: 100%; /* 確保卡片不超出父容器 */
     overflow: hidden; /* 防止內容溢出 */
 }
 
 .card-header {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     font-weight: bold;
     margin-bottom: 15px;
     border-bottom: 2px solid #f0f0f0;
@@ -108,15 +111,17 @@ input[type="text"]:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap; /* 允許標題與按鈕換行 */
+    flex-wrap: wrap; /* 標題太長自動換行 */
     gap: 10px;
 }
 
-/* K線圖時間按鈕 - 支援橫向捲動 */
+/* --- K線圖時間按鈕 (可橫向捲動) --- */
 .chart-controls {
     display: flex;
     gap: 5px;
-    flex-wrap: wrap;
+    overflow-x: auto; /* 允許手指左右滑動 */
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch; /* iOS 滑動順暢 */
 }
 
 .range-btn {
@@ -124,24 +129,17 @@ input[type="text"]:focus {
     border: 1px solid #e0e0e0;
     color: var(--text-light);
     padding: 4px 10px;
-    border-radius: 20px;
+    border-radius: 15px;
     cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-    white-space: nowrap; /* 文字不換行 */
-}
-
-.range-btn:hover {
-    background-color: #f0f0f0;
-    color: var(--text-dark);
+    font-size: 0.8rem;
+    white-space: nowrap; /* 按鈕文字不換行 */
+    flex-shrink: 0; /* 防止按鈕被擠扁 */
 }
 
 .range-btn.active {
     background-color: var(--accent-color);
     color: white;
     border-color: var(--accent-color);
-    font-weight: bold;
-    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
 }
 
 .chart-container {
@@ -150,99 +148,26 @@ input[type="text"]:focus {
     width: 100%;
 }
 
-/* 買賣力道與統計 */
-.sentiment-container {
-    padding: 5px 0;
-}
-
-.sentiment-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-    font-weight: bold;
-    font-size: 0.95rem;
-}
-
-.progress-bar-bg {
-    width: 100%;
-    height: 12px;
-    background-color: var(--down-color);
-    border-radius: 6px;
-    overflow: hidden;
-    margin-bottom: 20px;
-}
-
-.progress-bar-fill {
-    height: 100%;
-    background-color: var(--up-color);
-    width: 50%;
-    transition: width 0.8s ease-out;
-}
-
-/* 統計數據網格 - 自適應欄位 */
-.stats-grid {
-    display: grid;
-    /* 自動適應：每欄最小 80px，空間夠就多放幾欄 */
-    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-    gap: 15px;
-    text-align: center;
-    background: #f9f9f9;
-    padding: 15px;
-    border-radius: 8px;
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    color: var(--text-light);
-}
-
-.stat-value {
-    font-weight: bold;
-    font-size: 1rem;
-    color: var(--text-dark);
-}
-
-/* 頂部資訊列 - 自適應排版 */
+/* --- 頂部資訊列 (Info Bar) --- */
 .info-bar {
-    grid-column: 1 / -1;
+    grid-column: 1 / -1; /* 跨滿整列 */
     display: flex;
     justify-content: space-between;
     align-items: center;
     background: #fff;
-    padding: 20px 25px;
+    padding: 15px 20px;
     border-radius: 12px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    flex-wrap: wrap; /* 允許換行 */
-    gap: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    flex-wrap: wrap; /* 自適應關鍵：允許換行 */
+    gap: 15px;
 }
 
-.stock-title {
-    font-size: 1.8rem;
-    font-weight: 800;
+.stock-title { font-size: 1.5rem; font-weight: 800; }
+.price-display { font-size: 1.8rem; font-weight: bold; }
+.price-change { 
+    font-size: 1rem; padding: 4px 8px; border-radius: 4px; color: white; margin-left: 8px; 
     white-space: nowrap;
-}
-
-.price-display {
-    font-size: 2rem;
-    font-weight: bold;
-}
-
-.price-change {
-    font-size: 1rem;
-    padding: 5px 12px;
-    border-radius: 6px;
-    color: white;
-    margin-left: 10px;
-    white-space: nowrap;
-    display: inline-block;
-    vertical-align: middle;
 }
 
 .bg-up { background-color: var(--up-color); }
@@ -250,23 +175,41 @@ input[type="text"]:focus {
 .text-up { color: var(--up-color); }
 .text-down { color: var(--down-color); }
 
-/* 表格優化 */
-.order-book, .card {
-    overflow-x: auto; /* 讓超出範圍的表格可以橫向捲動 */
-}
+/* --- 買賣力道與統計 --- */
+.sentiment-container { padding: 5px 0; }
+.sentiment-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
+.progress-bar-bg { width: 100%; height: 10px; background-color: var(--down-color); border-radius: 5px; overflow: hidden; margin-bottom: 15px; }
+.progress-bar-fill { height: 100%; background-color: var(--up-color); width: 50%; transition: width 0.8s; }
 
+/* 統計網格：自適應寬度 */
+.stats-grid {
+    display: grid;
+    /* 每欄最少 80px，不夠就換行 */
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 10px;
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+}
+.stat-label { font-size: 0.75rem; color: var(--text-light); }
+.stat-value { font-weight: bold; font-size: 0.95rem; }
+
+/* --- 表格 (RWD 優化) --- */
+/* 讓表格在小螢幕時可以橫向滑動，不會撐破版面 */
+.order-book, .card {
+    overflow-x: auto;
+}
 .order-book table, .chips-table {
     width: 100%;
     border-collapse: collapse;
     text-align: center;
-    min-width: 300px; /* 確保表格不會縮得太小 */
+    white-space: nowrap; /* 內容不換行，保持表格整齊 */
 }
-
-.order-book th { font-size: 0.9rem; color: var(--text-light); padding: 8px; }
-.order-book td, .chips-table td { padding: 8px 5px; font-weight: bold; font-size: 0.95rem; }
+.order-book td, .chips-table td { padding: 8px; font-weight: bold; font-size: 0.9rem; }
 .chips-table td { border-bottom: 1px solid #eee; }
 
-/* AI 分析區塊 */
+/* --- AI 分析區塊 --- */
 .ai-section {
     grid-column: 1 / -1;
     background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
@@ -274,132 +217,70 @@ input[type="text"]:focus {
 }
 
 .ai-badge {
-    background: var(--ai-color);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    white-space: nowrap;
+    background: var(--ai-color); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;
 }
 
-/* AI 卡片網格 - 強大的自適應 */
+/* AI 卡片網格：最關鍵的自適應 */
 .ai-models-grid {
     display: grid;
-    /* 自動填滿：每張卡片至少 260px，空間夠就自動並排 */
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
+    /* 關鍵：每張卡片至少 250px，空間不夠自動換行 */
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
     margin-bottom: 20px;
 }
 
-.model-card {
-    background: #fff;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    transition: transform 0.2s;
-}
-
-.model-card:hover {
-    transform: translateY(-5px);
-}
-
-.model-header {
-    padding: 12px;
-    font-weight: bold;
-    color: white;
-    text-align: center;
-    font-size: 1rem;
-}
-
+.model-card { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.model-header { padding: 10px; font-weight: bold; color: white; text-align: center; }
 .gemini-card .model-header { background: linear-gradient(135deg, #4285F4, #34A853); }
 .gpt-card .model-header { background: linear-gradient(135deg, #10a37f, #0d8a6a); }
 .deepseek-card .model-header { background: linear-gradient(135deg, #8e44ad, #3498db); }
 
-.model-body { padding: 20px; text-align: center; }
-.model-view { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; color: #2c3e50; }
-.stars { color: gold; font-size: 1.3rem; margin: 5px 0; }
-.model-desc { font-size: 0.9rem; color: #666; line-height: 1.5; text-align: left; margin-top: 15px; }
+.model-body { padding: 15px; text-align: center; }
+.model-view { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; }
+.stars { color: gold; font-size: 1.2rem; margin: 5px 0; }
+.model-desc { font-size: 0.85rem; color: #666; text-align: left; line-height: 1.4; }
 
 /* AI 總結 */
 .ai-final-summary {
-    background: #fff;
-    border-left: 5px solid #4285F4;
-    padding: 20px;
-    border-radius: 0 8px 8px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    background: #fff; border-left: 4px solid #4285F4; padding: 15px; border-radius: 0 8px 8px 0;
 }
 
-.summary-title { font-weight: bold; color: #4285F4; margin-bottom: 10px; font-size: 1.1rem; }
-.summary-text { color: #333; line-height: 1.6; font-size: 1rem; }
+/* 新聞 */
+.news-item { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+.news-title { display: block; font-weight: bold; color: #2c3e50; text-decoration: none; margin-bottom: 5px; }
+.news-meta { font-size: 0.8rem; color: #999; }
 
-/* 新聞樣式 */
-.news-item {
-    margin-bottom: 15px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #eee;
-}
-.news-item:last-child { border-bottom: none; }
-.news-title {
-    display: block;
-    font-weight: bold;
-    color: #2c3e50;
-    text-decoration: none;
-    margin-bottom: 6px;
-    font-size: 1rem;
-    line-height: 1.4;
-}
-.news-title:hover { color: var(--accent-color); }
-.news-meta { font-size: 0.85rem; color: #999; }
-.news-source { margin-right: 10px; font-weight: bold; color: #7f8c8d; }
+/* --- 媒體查詢 (Media Queries) --- */
 
-/* --- 媒體查詢 (Media Queries) 針對不同裝置調整 --- */
-
-/* 平板與手機 (寬度 < 992px) */
-@media (max-width: 992px) {
+/* 當螢幕小於 900px (平板/小筆電) */
+@media (max-width: 900px) {
     .dashboard {
-        grid-template-columns: 1fr; /* 變為單欄 */
-    }
-}
-
-/* 手機直立 (寬度 < 600px) */
-@media (max-width: 600px) {
-    body {
-        padding: 10px;
-    }
-
-    .info-bar {
-        flex-direction: column; /* 垂直排列 */
-        align-items: stretch; /* 拉寬填滿 */
-        text-align: center;
-        gap: 15px;
-        padding: 15px;
-    }
-
-    .price-display {
-        display: block;
-        margin-bottom: 5px;
-    }
-
-    .price-change {
-        margin-left: 0;
-        display: inline-block;
-    }
-
-    .chart-controls {
-        justify-content: flex-start;
-        overflow-x: auto; /* 允許按鈕區橫向滑動 */
-        padding-bottom: 5px;
-    }
-
-    .range-btn {
-        flex-shrink: 0;
+        grid-template-columns: 1fr; /* 強制變單欄 */
     }
     
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr); /* 手機版強制兩欄，比較整齊 */
+    .header-section h1 {
+        font-size: 1.3rem;
     }
+}
 
-    .card-header {
-        font-size: 1.1rem;
+/* 當螢幕小於 600px (手機直向) */
+@media (max-width: 600px) {
+    .info-bar {
+        flex-direction: column; /* 資訊列垂直排列 */
+        text-align: center;
     }
+    
+    .price-display { margin: 5px 0; }
+    
+    .stats-grid {
+        grid-template-columns: 1fr 1fr; /* 統計數據變兩欄 */
+    }
+    
+    .ai-models-grid {
+        grid-template-columns: 1fr; /* AI 卡片在手機上強制一欄一張 */
+    }
+    
+    /* 調整字體大小，避免太擠 */
+    .stock-title { font-size: 1.5rem; }
+    .card-header { font-size: 1rem; }
 }
