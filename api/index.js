@@ -1,4 +1,4 @@
-// api/index.js (整合 FinMind 真實法人數據)
+// api/index.js (穩定容錯版：防止單一資料源失敗導致崩潰)
 import yahooFinance from 'yahoo-finance2';
 
 export default async function handler(req, res) {
@@ -8,35 +8,52 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing symbol parameter' });
     }
 
-    // 禁止快取，確保資料最新
+    // 禁止快取
     res.setHeader('Cache-Control', 'no-store, no-cache');
 
     try {
-        // 1. 準備日期參數
         const today = new Date();
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
         const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
-        const startDate = tenDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD
+        const startDate = tenDaysAgo.toISOString().split('T')[0]; 
         
-        // Yahoo 使用 "2330.TW"，但 FinMind 只吃 "2330"，需移除 .TW
+        // 移除 .TW 供 FinMind 使用
         const stockId = symbol.replace('.TW', '');
 
-        // 2. 定義所有 API 請求
-        // (A) Yahoo 報價
+        // ★★★ 關鍵修改：將每個請求獨立包裝，避免連坐法 ★★★
+
+        // 1. 核心報價 (這是最重要的，如果這個失敗，就真的該報錯)
         const quotePromise = yahooFinance.quote(symbol);
-        // (B) Yahoo 新聞
-        const newsPromise = yahooFinance.quoteSummary(symbol, { modules: ["news"] });
-        // (C) Yahoo K線 (3天)
+
+        // 2. 新聞 (如果失敗，回傳空陣列，不要讓程式崩潰)
+        const newsPromise = yahooFinance.quoteSummary(symbol, { modules: ["news"] })
+            .catch(err => {
+                console.error("News API Failed:", err.message);
+                return { news: [] }; // 回傳空資料當作備案
+            });
+
+        // 3. K 線 (如果失敗，回傳空陣列)
         const chartPromise = yahooFinance.chart(symbol, { 
-            period1: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), 
+            period1: threeDaysAgo, 
             interval: '5m' 
+        }).catch(err => {
+            console.error("Chart API Failed:", err.message);
+            return { quotes: [] }; 
         });
         
-        // (D) ★★★ 新增：FinMind 三大法人買賣超 ★★★
-        // dataset: TaiwanStockInstitutionalInvestorsBuySell (個股法人買賣超)
+        // 4. FinMind 籌碼 (最容易失敗的部分，加強保護)
         const finMindUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestorsBuySell&data_id=${stockId}&start_date=${startDate}`;
-        const chipsPromise = fetch(finMindUrl).then(r => r.json());
+        const chipsPromise = fetch(finMindUrl)
+            .then(r => {
+                if (!r.ok) throw new Error(`FinMind Status: ${r.status}`);
+                return r.json();
+            })
+            .catch(err => {
+                console.error("FinMind API Failed:", err.message);
+                return { data: [] }; // 回傳空資料
+            });
 
-        // 3. 平行執行所有請求
+        // 平行執行 (現在即使配菜失敗，主餐也能上桌)
         const [quote, newsResult, chartResult, chipsResult] = await Promise.all([
             quotePromise, 
             newsPromise, 
@@ -44,17 +61,16 @@ export default async function handler(req, res) {
             chipsPromise
         ]);
 
-        // 4. 處理 FinMind 法人資料
+        // --- 以下資料處理邏輯保持不變 ---
+
+        // 處理 FinMind 法人資料
         let realChips = [];
         if (chipsResult.data && chipsResult.data.length > 0) {
-            // 取最後一筆 (最新交易日) 的資料
-            // FinMind 回傳的是一個陣列，包含外資、投信、自營商等多筆，需篩選同一天
             const latestData = chipsResult.data.filter(d => d.date === chipsResult.data[chipsResult.data.length-1].date);
             
-            // 整理格式
-            let foreign = 0; // 外資
-            let trust = 0;   // 投信
-            let dealer = 0;  // 自營商
+            let foreign = 0;
+            let trust = 0;
+            let dealer = 0;
 
             latestData.forEach(item => {
                 if (item.name === 'Foreign_Investor') foreign += item.buy - item.sell;
@@ -62,16 +78,14 @@ export default async function handler(req, res) {
                 if (item.name === 'Dealer' || item.name === 'Dealer_Self' || item.name === 'Dealer_Hedging') dealer += item.buy - item.sell;
             });
             
-            // 轉換成張數 (FinMind 單位是股，除以 1000)
             realChips = [
                 { name: '外資', val: Math.floor(foreign / 1000) },
                 { name: '投信', val: Math.floor(trust / 1000) },
                 { name: '自營商', val: Math.floor(dealer / 1000) },
-                // 主力目前 FinMind 免費版較難取得精準定義，暫時顯示合計或移除
                 { name: '合計', val: Math.floor((foreign + trust + dealer) / 1000) }
             ];
         } else {
-            // 如果抓不到 (例如美股或ETF)，回傳空陣列，前端顯示 --
+            // 如果 FinMind 失敗，這裡會執行，前端會顯示 --
             realChips = [
                 { name: '外資', val: null },
                 { name: '投信', val: null },
@@ -80,7 +94,7 @@ export default async function handler(req, res) {
             ];
         }
 
-        // 5. 處理其他資料 (K線、新聞)
+        // 處理 K 線與新聞
         const chartData = (chartResult.quotes || []).filter(q => q.close && q.volume > 0);
         
         const rawNews = newsResult.news || [];
@@ -94,7 +108,6 @@ export default async function handler(req, res) {
         const change = quote.regularMarketChangePercent || 0;
         const trend = change > 0 ? "偏多" : (change < 0 ? "偏空" : "盤整");
         
-        // 簡單的 AI 邏輯 (此處維持不變)
         const aiOpinions = {
             gemini: {
                 name: "Gemini 3",
@@ -111,7 +124,7 @@ export default async function handler(req, res) {
             deepseek: {
                 name: "DeepSeek V3.2",
                 view: "技術籌碼",
-                desc: `股價位於${change > 0 ? '支撐' : '壓力'}區，法人動向${realChips[0].val > 0 ? '偏多' : '偏空'}。`,
+                desc: `股價位於${change > 0 ? '支撐' : '壓力'}區，法人動向${realChips[0].val !== null ? (realChips[0].val > 0 ? '偏多' : '偏空') : '不明'}。`,
                 score: change > 0 ? 88 : 45
             }
         };
@@ -125,16 +138,17 @@ export default async function handler(req, res) {
             chart: chartData, 
             aiAnalysis: {
                 opinions: aiOpinions,
-                summary: `目前趨勢${trend}，外資今日${realChips[0].val > 0 ? '買超' : '賣超'} ${Math.abs(realChips[0].val || 0)} 張。`
+                summary: `目前趨勢${trend}，${realChips[0].val !== null ? `外資今日${realChips[0].val > 0 ? '買超' : '賣超'} ${Math.abs(realChips[0].val)} 張` : '法人數據暫時無法取得'}。`
             },
             news: formattedNews,
-            chips: realChips // ★ 將真實籌碼傳給前端
+            chips: realChips
         };
 
         return res.status(200).json(result);
 
     } catch (error) {
-        console.error("API Error:", error);
+        console.error("API Critical Error:", error);
+        // 只有在最核心的「股價」都抓不到時，才會回傳錯誤給前端
         return res.status(500).json({ error: 'Failed', details: error.message });
     }
 }
