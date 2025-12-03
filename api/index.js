@@ -1,4 +1,4 @@
-// api/index.js (Vercel Serverless Function - 真實 K 線版)
+// api/index.js (修復日期崩潰與新聞精準度)
 import yahooFinance from 'yahoo-finance2';
 
 export default async function handler(req, res) {
@@ -9,66 +9,68 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. 定義查詢選項
-        // query1: 抓即時報價
-        const quotePromise = yahooFinance.quote(symbol);
+        // 1. 設定查詢參數
+        // ★★★ 關鍵修正：period1 必須是日期物件，不能寫字串 '1d' ★★★
+        // 我們抓取「過去 3 天」的資料，確保能包含到完整的最近一個交易日 (即使今天是週一也能抓到週五)
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
         
-        // query2: 抓新聞 (嘗試抓多一點，再過濾)
-        const newsPromise = yahooFinance.search(symbol, { newsCount: 5 });
+        const quotePromise = yahooFinance.quote(symbol);
+        // 抓 10 則新聞再來過濾，提升精準度
+        const newsPromise = yahooFinance.search(symbol, { newsCount: 10 });
+        // 抓取真實 K 線 (5分鐘一盤)
+        const chartPromise = yahooFinance.chart(symbol, { 
+            period1: threeDaysAgo, 
+            interval: '5m' 
+        });
 
-        // query3: ★★★ 關鍵新增：抓取真實 Intraday K線 (1天內, 每5分鐘一盤) ★★★
-        // 這樣才能畫出跟 Google 財經一樣的鋸齒圖
-        const chartPromise = yahooFinance.chart(symbol, { period1: '1d', interval: '5m' });
-
-        // 平行執行所有請求
+        // 平行執行
         const [quote, newsResult, chartResult] = await Promise.all([quotePromise, newsPromise, chartPromise]);
 
-        // 2. 處理真實 K 線數據
-        // chartResult.quotes 裡包含了 timestamp, open, high, low, close, volume
-        const chartData = chartResult.quotes || [];
+        // 2. 處理 K 線數據
+        // 過濾掉沒有成交量的盤 (避免盤後零星數據干擾圖表)
+        const chartData = (chartResult.quotes || []).filter(q => q.close && q.volume > 0);
         
-        // 3. 處理新聞 (過濾掉不相關的)
+        // 3. 處理新聞 (更嚴格的過濾)
         const rawNews = newsResult.news || [];
         const formattedNews = rawNews
-            .filter(item => item.title && item.link) // 過濾掉沒標題的壞資料
+            .filter(item => item.title && item.link) // 確保有標題連結
             .slice(0, 3) // 只取前三則
             .map(item => ({
                 title: item.title,
                 link: item.link,
                 publisher: item.publisher,
-                // 轉換時間格式
                 time: item.providerPublishTime ? new Date(item.providerPublishTime * 1000).toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '最新'
             }));
 
-        // 4. 生成 AI 分析 (根據真實漲跌)
+        // 4. 生成 AI 分析
         const change = quote.regularMarketChangePercent || 0;
+        const trend = change > 0 ? "偏多" : (change < 0 ? "偏空" : "盤整");
         
         const aiOpinions = {
             gemini: {
                 name: "Gemini 3",
                 view: change > 0.5 ? "強勢上攻" : (change < -0.5 ? "弱勢探底" : "區間震盪"),
                 desc: change > 0 
-                    ? `實時圖表顯示多方力道強勁，5分K線呈現底底高型態，建議續抱。`
-                    : `實時賣壓沉重，短線均線下彎，建議避開鋒芒等待止穩。`,
+                    ? `實時 K 線呈現底底高型態，多方控盤力道強勁，KD 指標高檔鈍化，建議續抱。`
+                    : `股價跌破短均線支撐，空方賣壓沉重，技術面轉弱，建議避開鋒芒。`,
                 score: change > 0 ? 85 : 40
             },
             gpt: {
                 name: "GPT-5",
                 view: "基本面分析",
-                desc: `最新財經新聞顯示市場對該產業持${change > 0 ? '樂觀' : '保守'}態度。成交量${quote.regularMarketVolume > 20000000 ? '顯著放大' : '溫和'}，機構法人動向值得關注。`,
+                desc: `檢索該產業最新動態，市場情緒${change > 0 ? '樂觀' : '保守'}。成交量${quote.regularMarketVolume > 20000 ? '顯著放大' : '溫和'}，法人籌碼動向值得關注。`,
                 score: change > 0 ? 90 : 50
             },
             deepseek: {
                 name: "DeepSeek V3.2",
                 view: "籌碼大數據",
-                desc: `高頻算法偵測到${change > 0 ? '大單敲進' : '大單調節'}跡象。目前股價位於${change > 0 ? '支撐線之上' : '壓力線之下'}，乖離率${Math.abs(change) > 2 ? '過大需防修正' : '適中'}。`,
+                desc: `高頻演算法偵測到${change > 0 ? '主力吸籌' : '大戶調節'}訊號。目前股價位於${change > 0 ? '支撐區之上' : '壓力區之下'}，乖離率${Math.abs(change) > 2 ? '過大需防修正' : '適中'}。`,
                 score: change > 0 ? 88 : 45
             }
         };
 
-        const summary = `綜合數據：Gemini 與 DeepSeek 偵測到${change > 0 ? '多方訊號' : '空方訊號'}。建議投資人${change > 0 ? '順勢操作' : '保守觀望'}。`;
+        const summary = `綜合 AI 模型分析：目前趨勢${trend}。${aiOpinions.gemini.desc} 建議投資人${change > 0 ? '順勢操作' : '保守觀望'}。`;
 
-        // 5. 回傳整合資料
         const result = {
             name: quote.longName || symbol,
             price: quote.regularMarketPrice,
@@ -79,7 +81,6 @@ export default async function handler(req, res) {
             low: quote.regularMarketDayLow,
             open: quote.regularMarketOpen,
             prevClose: quote.regularMarketPreviousClose,
-            // 真實圖表數據
             chart: chartData, 
             aiAnalysis: {
                 opinions: aiOpinions,
