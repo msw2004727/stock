@@ -1,10 +1,9 @@
-// --- JS 邏輯區 (真實 K 線數據版) ---
+// --- JS 邏輯區 (修復版) ---
 
 let kChartInstance = null;
 let fullHistoryData = { labels: [], prices: [] };
-let intradayRealData = { labels: [], prices: [] }; // ★ 新增：存真實當日數據
+let intradayRealData = { labels: [], prices: [] };
 
-// 搜尋功能入口
 async function searchStock() {
     const input = document.getElementById('stockInput').value.trim();
     const dashboard = document.getElementById('dashboard');
@@ -22,71 +21,74 @@ async function searchStock() {
         if (/^\d+$/.test(input)) {
             querySymbol = input + ".TW";
         } else {
-            // 簡易對應，實際建議後端做 mapping
+            // 簡易對應
             if(input.includes("台積電")) querySymbol = "2330.TW";
             else if(input.includes("聯發科")) querySymbol = "2454.TW";
             else if(input.includes("長榮")) querySymbol = "2603.TW";
             else if(input.includes("鴻海")) querySymbol = "2317.TW";
-            else if(input.includes("廣達")) querySymbol = "2382.TW";
+            else querySymbol = "2330.TW"; // 預設防呆
         }
 
-        // 呼叫後端 API
         const response = await fetch(`/api?symbol=${querySymbol}`);
         const stockData = await response.json();
 
+        // ★ 如果後端回傳錯誤，顯示詳細原因
         if (stockData.error) {
-            alert("查無資料，請確認代號是否正確");
+            console.error("Backend Error:", stockData.details);
+            alert("資料讀取失敗，請確認代號或稍後再試。");
             document.getElementById('stockName').innerText = "查無資料";
             return;
         }
 
-        // 1. 處理真實 K 線資料 (從後端來的 5分K)
+        // 1. 處理真實 K 線資料 (只取最新一天的交易日)
         if (stockData.chart && stockData.chart.length > 0) {
             const chartLabels = [];
             const chartPrices = [];
             
+            // 找出最後一筆資料的日期
+            const lastDate = new Date(stockData.chart[stockData.chart.length - 1].date).getDate();
+
             stockData.chart.forEach(point => {
-                // 轉換時間戳記為 HH:mm
                 const date = new Date(point.date);
-                const timeStr = date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
-                
-                // 只取有交易的 close 價格
-                if(point.close) {
+                // ★ 只加入「最後一天」的資料，這樣 1D 圖才不會擠了好幾天
+                if (date.getDate() === lastDate && point.close) {
+                    const timeStr = date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
                     chartLabels.push(timeStr);
                     chartPrices.push(point.close);
                 }
             });
             intradayRealData = { labels: chartLabels, prices: chartPrices };
+        } else {
+            // 防呆：如果真的沒抓到圖
+            intradayRealData = { labels: ["09:00", "13:30"], prices: [stockData.open, stockData.price] };
         }
 
-        // 2. 生成長線歷史資料 (這部分因為免費 API 限制，暫時維持模擬，若要全真實需後端加抓歷史)
+        // 2. 生成長線歷史 (模擬)
         generateMockHistory(stockData.price);
         
         // 3. 渲染畫面
         renderDashboard(input, stockData);
         
-        // 4. 預設顯示 1D (當日)
+        // 4. 切換到 1D
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.range-btn')[0].classList.add('active'); 
         updateTimeRange('1D'); 
 
     } catch (err) {
         console.error(err);
-        alert("連線錯誤，請稍後再試");
+        alert("網路連線錯誤");
     }
 }
 
-// 渲染儀表板
 function renderDashboard(query, stock) {
-    // 基本資訊
-    const displayName = stock.name.replace('.TW', '');
+    const displayName = stock.name ? stock.name.replace('.TW', '') : query;
     document.getElementById('stockName').innerText = `${displayName} (${query})`;
     document.getElementById('dataDate').innerText = new Date().toLocaleString('zh-TW');
 
     const priceEl = document.getElementById('currentPrice');
     const changeEl = document.getElementById('priceChange');
     
-    priceEl.innerText = stock.price.toFixed(2);
+    priceEl.innerText = stock.price ? stock.price.toFixed(2) : "--";
     
     if(stock.change > 0) {
         priceEl.className = "price-display text-up";
@@ -103,15 +105,13 @@ function renderDashboard(query, stock) {
         changeEl.innerText = `- 0.00 (0.00%)`;
     }
 
-    const volText = stock.volume > 10000 ? Math.floor(stock.volume/1000).toLocaleString() : stock.volume.toLocaleString();
+    const volText = stock.volume > 10000 ? Math.floor(stock.volume/1000).toLocaleString() : (stock.volume ? stock.volume.toLocaleString() : "--");
     document.getElementById('volume').innerText = volText;
 
-    // 價量數據
     renderVolumeStats(stock.price);
     renderOrderBook(stock.price);
     renderChips();
 
-    // 更新 AI 卡片
     if (stock.aiAnalysis && stock.aiAnalysis.opinions) {
         const ai = stock.aiAnalysis.opinions;
         updateAICard('gemini', ai.gemini);
@@ -120,7 +120,6 @@ function renderDashboard(query, stock) {
         document.getElementById('aiSummaryText').innerText = stock.aiAnalysis.summary;
     }
 
-    // ★★★ 更新新聞 (使用後端過濾後的精準新聞) ★★★
     const newsList = document.getElementById('newsList');
     let newsHtml = '';
     if (stock.news && stock.news.length > 0) {
@@ -140,7 +139,6 @@ function renderDashboard(query, stock) {
     newsList.innerHTML = newsHtml;
 }
 
-// 更新單張 AI 卡片
 function updateAICard(id, data) {
     if(!data) return;
     document.getElementById(`${id}-view`).innerText = data.view;
@@ -150,7 +148,6 @@ function updateAICard(id, data) {
     document.getElementById(`${id}-stars`).innerText = starStr;
 }
 
-// 切換時間區間 (含 1D 真實邏輯)
 function updateTimeRange(range, btnElement) {
     if(btnElement) {
         document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
@@ -160,17 +157,9 @@ function updateTimeRange(range, btnElement) {
     let labels, data;
 
     if (range === '1D') {
-        // ★★★ 使用從後端抓回來的真實數據 ★★★
         labels = intradayRealData.labels;
         data = intradayRealData.prices;
-        
-        // 防呆：如果剛開盤沒數據，顯示空圖表或提示
-        if(labels.length === 0) {
-            labels = ["09:00", "13:30"];
-            data = [null, null];
-        }
     } else {
-        // 歷史資料 (目前仍為模擬，可後續擴充)
         const totalPoints = fullHistoryData.labels.length;
         let sliceCount = 22; 
         switch(range) {
@@ -187,10 +176,10 @@ function updateTimeRange(range, btnElement) {
         data = fullHistoryData.prices.slice(-sliceCount);
     }
 
-    drawKChart(labels, data, range === '1D');
+    drawKChart(labels, data);
 }
 
-function drawKChart(labels, data, isIntraday) {
+function drawKChart(labels, data) {
     const ctx = document.getElementById('kLineChart').getContext('2d');
     if(kChartInstance) kChartInstance.destroy();
 
@@ -204,10 +193,10 @@ function drawKChart(labels, data, isIntraday) {
                 borderColor: '#ff333a',
                 backgroundColor: 'rgba(255, 51, 58, 0.05)',
                 borderWidth: 2,
-                pointRadius: 0, // 隱藏點
+                pointRadius: 0,
                 pointHoverRadius: 4,
                 fill: true,
-                tension: 0.1 // 稍微一點平滑，讓鋸齒看起來更自然
+                tension: 0.1
             }]
         },
         options: {
@@ -218,14 +207,7 @@ function drawKChart(labels, data, isIntraday) {
             scales: {
                 x: { 
                     grid: { display: false }, 
-                    ticks: { 
-                        maxTicksLimit: 6, 
-                        maxRotation: 0,
-                        // 如果是 1D，確保標籤不會太擠
-                        callback: function(val, index) {
-                            return this.getLabelForValue(val);
-                        }
-                    } 
+                    ticks: { maxTicksLimit: 6, maxRotation: 0 } 
                 },
                 y: { grid: { color: '#f0f0f0' }, beginAtZero: false }
             },
@@ -234,12 +216,11 @@ function drawKChart(labels, data, isIntraday) {
     });
 }
 
-// 產生模擬歷史資料 (長天期用)
 function generateMockHistory(currentPrice) {
     const totalDays = 1260; 
     const labels = [];
     const prices = [];
-    let tempPrices = [currentPrice];
+    let tempPrices = [currentPrice || 100];
     for(let i=1; i<totalDays; i++) {
         const prev = tempPrices[i-1];
         const change = (Math.random() - 0.5) * (prev * 0.03); 
@@ -258,7 +239,6 @@ function generateMockHistory(currentPrice) {
     fullHistoryData = { labels: labels.slice(-minLen), prices: prices.slice(-minLen) };
 }
 
-// 價量 (模擬)
 function renderVolumeStats(currentPrice) {
     const buyPct = Math.floor(Math.random() * 40) + 30; 
     document.getElementById('buyPct').innerText = buyPct + '%';
@@ -269,7 +249,6 @@ function renderVolumeStats(currentPrice) {
     document.getElementById('amplitude').innerText = (Math.random() * 2 + 0.5).toFixed(2) + '%';
     document.getElementById('tickVol').innerText = Math.floor(Math.random() * 50);
 }
-// 五檔 (模擬)
 function renderOrderBook(basePrice) {
     const tbody = document.getElementById('orderBookBody');
     let html = '';
@@ -280,7 +259,6 @@ function renderOrderBook(basePrice) {
     }
     tbody.innerHTML = html;
 }
-// 籌碼 (模擬)
 function renderChips() {
     const tbody = document.getElementById('chipsBody');
     const roles = ['主力', '外資', '投信', '自營商'];
@@ -291,4 +269,4 @@ function renderChips() {
         html += `<tr><td style="text-align:left;padding-left:20px;">${role}</td><td class="${color}">${val>0?'+':''}${val}</td></tr>`;
     });
     tbody.innerHTML = html;
-}
+}s
